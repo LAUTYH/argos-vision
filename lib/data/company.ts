@@ -286,6 +286,20 @@ export const TRUCK_PLATES = [
 
 export const DOCK_COUNT = 8;
 
+/**
+ * The runtime this console pretends to be talking to. The bench screen reports
+ * single-GPU, batch-1 figures from the paper; a deployment that serves six
+ * live cameras batches frames across streams and runs on several GPUs, which
+ * is why the aggregate rate on the tower is much higher than 12.7 boxes/s.
+ */
+export const RUNTIME = {
+  fleet: "4 × H100 80 GB",
+  precision: "BF16",
+  mode: "hybrid",
+  batching: "batch por lote de cámaras",
+  note: "Las cifras del Model bench son de una H100 con batch 1, tal como se publican. Los feeds simulan un despliegue con varias GPU y batching entre cámaras.",
+};
+
 export interface WindAsset {
   id: string;
   model: string;

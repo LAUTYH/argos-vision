@@ -7,6 +7,7 @@ import { PX_PER_M } from "@/lib/sim/modules/patio";
 import { cameraU, defectScreenBox, type InspeccionData } from "@/lib/sim/modules/inspeccion";
 import { personView } from "@/lib/sim/modules/shared";
 import type { BoxEntity, DefectEntity, ModuleId, PalletEntity, PersonEntity, Vec2, VehicleEntity } from "@/lib/sim/types";
+import type { ModuleData } from "@/lib/sim/modules";
 import type { World, WorldState } from "@/lib/sim/world";
 import { polyPath } from "./canvas";
 
@@ -484,7 +485,7 @@ function drawDefect(ctx: CanvasRenderingContext2D, e: DefectEntity, u: number): 
 
 // ── entry point ────────────────────────────────────────────────────────────
 
-export function paintAgents(ctx: CanvasRenderingContext2D, module: ModuleId, world: World<unknown>, t: number): void {
+export function paintAgents(ctx: CanvasRenderingContext2D, module: ModuleId, world: World<ModuleData>, t: number): void {
   void t;
   const entities = world.state.entities;
   switch (module) {

@@ -67,10 +67,11 @@ function zonePoint(rng: Rng, z: FlowZone, dwell: number): Waypoint {
   };
 }
 
-function buildRoute(rng: Rng, fromBack: boolean): { start: Vec2; route: Waypoint[] } {
+function buildRoute(rng: Rng, fromBack: boolean, forceZone?: string): { start: Vec2; route: Waypoint[] } {
   const start = fromBack ? { x: rng.float(-1.5, 1.5), y: 19.2 } : { x: rng.float(-1.7, 1.7), y: 3.2 };
   const route: Waypoint[] = [];
-  const zonesToVisit = rng.shuffle(FLOW_ZONES).slice(0, rng.int(1, 2));
+  const forced = forceZone ? FLOW_ZONES.filter((z) => z.id === forceZone) : [];
+  const zonesToVisit = forced.length ? forced : rng.shuffle(FLOW_ZONES).slice(0, rng.int(1, 2));
   for (const z of zonesToVisit) {
     const stops = rng.int(2, 4);
     for (let i = 0; i < stops; i++) route.push(zonePoint(rng, z, rng.float(2.5, 9)));
@@ -80,9 +81,9 @@ function buildRoute(rng: Rng, fromBack: boolean): { start: Vec2; route: Waypoint
   return { start, route };
 }
 
-function spawn(ctx: InitCtx | StepCtx, t: number, fromBack: boolean): PersonEntity {
+function spawn(ctx: InitCtx | StepCtx, t: number, fromBack: boolean, forceZone?: string): PersonEntity {
   const who = ctx.rng.pick(STAFF);
-  const rr = buildRoute(ctx.rng, fromBack);
+  const rr = buildRoute(ctx.rng, fromBack, forceZone);
   return makePerson({
     id: ctx.id(),
     trackId: ctx.track(),
@@ -105,16 +106,18 @@ function stepCore(state: WorldState<FlujoData>, ctx: StepCtx, emit: boolean): vo
   for (const e of state.entities) if (e.kind === "persona") people.push(e);
 
   if (ctx.actions.includes("surge")) {
-    d.surgeLeft = 4;
+    d.surgeLeft = 5;
     d.surgeTimer = 0;
-    if (emit) ctx.emit({ severity: "info", kind: "flow", title: "Pico de ingreso · 4 personas", detail: "Ingreso simultáneo por pasillo central" });
+    // Everyone in the surge heads for the same zone, which is what actually
+    // breaches the aforo a few seconds later.
+    if (emit) ctx.emit({ severity: "low", kind: "flow", title: "Pico de ingreso · 5 personas hacia Picking B", detail: "Ingreso simultáneo por pasillo central · aforo de la zona en 4" });
   }
   if (d.surgeLeft > 0) {
     d.surgeTimer -= ctx.dt;
     if (d.surgeTimer <= 0) {
-      state.entities.push(spawn(ctx, ctx.t, false));
+      state.entities.push(spawn(ctx, ctx.t, false, "pickB"));
       d.surgeLeft -= 1;
-      d.surgeTimer = 0.8;
+      d.surgeTimer = 0.55;
     }
   }
 

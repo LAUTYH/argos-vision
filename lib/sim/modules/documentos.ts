@@ -7,7 +7,26 @@ import type { InitCtx, ModuleDef, StepCtx, WorldState } from "../world";
  * office scanner; the fields are the entities the model localises.
  * Layout is shared with the renderer so boxes always sit on the text.
  */
-export const DOC = { x: 262, y: 28, w: 756, h: 664 };
+export const DOC = { x: 232, y: 16, w: 816, h: 690 };
+
+const SCAN_01 = "SCAN-01";
+
+/**
+ * Verification steps the office runs over an already-extracted remito. They
+ * describe checks on the document itself; the comparison against what the belt
+ * counted lives on the screen, which can see both modules.
+ */
+const CHECKS: Array<(r: Remito) => { title: string; detail: string; severity: "info" | "low" }> = [
+  (r) => ({ severity: "info", title: `CUIT validado · ${r.cuit}`, detail: `${r.supplier} · proveedor habilitado en el maestro` }),
+  (r) => ({ severity: "low", title: `Patente ${r.plate} en revisión manual`, detail: `Confianza por debajo del umbral · cotejo con el ingreso de portería` }),
+  (r) => ({ severity: "info", title: `Transporte confirmado · ${r.carrier}`, detail: `Chofer ${r.driver} · dársena asignada ${r.dock}` }),
+  (r) => ({
+    severity: "info",
+    title: `Total declarado · ${r.lines.reduce((a, l) => a + l.expected, 0)} unidades`,
+    detail: `${r.lines.length} líneas · cotejo contra el conteo de la cinta en curso`,
+  }),
+  (r) => ({ severity: "info", title: `Firma y aclaración detectadas`, detail: `Recepción conforme pendiente de cierre · remito ${r.number}` }),
+];
 
 export interface DocLayoutField {
   field: string;
@@ -51,6 +70,11 @@ export interface DocumentosData {
   docIdx: number;
   docSince: number;
   processedToday: number;
+  /** Pipeline stages already logged for the active document. */
+  stage: number;
+  /** Index of the next field-verification line to log. */
+  check: number;
+  nextCheckAt: number;
 }
 
 function fieldsOf(ctx: InitCtx | StepCtx, idx: number): FieldEntity[] {
@@ -71,7 +95,7 @@ function fieldsOf(ctx: InitCtx | StepCtx, idx: number): FieldEntity[] {
 }
 
 function init(ctx: InitCtx): { data: DocumentosData; entities: Entity[] } {
-  return { data: { docIdx: 0, docSince: 0, processedToday: 14 }, entities: fieldsOf(ctx, 0) };
+  return { data: { docIdx: 0, docSince: 0, processedToday: 14, stage: 0, check: 0, nextCheckAt: 9 }, entities: fieldsOf(ctx, 0) };
 }
 
 export function activeDocument(state: WorldState<DocumentosData>): Remito {
@@ -85,10 +109,49 @@ function step(state: WorldState<DocumentosData>, ctx: StepCtx): void {
   // the active document aligned with /recepcion (same remito index cadence).
   const d = state.data;
   const DOC_CYCLE = 130;
+  const elapsed = ctx.t - d.docSince;
+  const doc = activeDocument(state);
+  // Pipeline stages, logged as the document is worked through.
+  if (d.stage === 0 && elapsed > 0.4) {
+    d.stage = 1;
+    ctx.emit({
+      severity: "info",
+      kind: "doc",
+      title: `Remito ${doc.number} en cola de extracción`,
+      detail: `${doc.supplier} · escaneado en ${SCAN_01} · ${state.entities.length} regiones a localizar`,
+    });
+  } else if (d.stage === 1 && elapsed > 2.1) {
+    d.stage = 2;
+    ctx.emit({
+      severity: "info",
+      kind: "doc",
+      title: `Cabecera extraída · ${doc.number}`,
+      detail: `CUIT ${doc.cuit} · patente ${doc.plate} · validado contra maestro de proveedores`,
+    });
+  } else if (d.stage === 3 && ctx.t >= d.nextCheckAt) {
+    const make = CHECKS[d.check % CHECKS.length];
+    d.check += 1;
+    d.nextCheckAt = ctx.t + 10.5;
+    if (make) {
+      const c = make(doc);
+      ctx.emit({ severity: c.severity, kind: "doc", title: c.title, detail: c.detail });
+    }
+  } else if (d.stage === 2 && elapsed > 4.6) {
+    d.stage = 3;
+    d.nextCheckAt = ctx.t + 5;
+    ctx.emit({
+      severity: "info",
+      kind: "doc",
+      title: `${doc.lines.length} líneas extraídas · ${state.entities.length} campos`,
+      detail: `Documento completo en una pasada · verificación campo por campo en curso`,
+    });
+  }
   if (ctx.t - d.docSince >= DOC_CYCLE && d.docIdx < REMITOS.length - 1) {
     d.docIdx += 1;
     d.docSince = ctx.t;
     d.processedToday += 1;
+    d.stage = 0;
+    d.check = 0;
     state.entities = fieldsOf(ctx, d.docIdx);
     const r = activeDocument(state);
     ctx.emit({ severity: "info", kind: "doc", title: `Remito ${r.number} digitalizado`, detail: `${r.supplier} · ${state.entities.length} campos extraídos en una pasada` });

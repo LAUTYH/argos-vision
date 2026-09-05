@@ -1,6 +1,8 @@
-import { activeProvider, type InferenceProvider } from "@/lib/inference";
+import { activeProvider, PrecomputedProvider, realVocabulary, type InferenceProvider } from "@/lib/inference";
+import { hasRealFeed, realFeedFor } from "@/lib/feeds/catalog";
+import { loadTracks } from "@/lib/feeds/tracks";
 import { baseClasses, resolvePrompt, type ClassSpec } from "./classes";
-import { MODULE_DEFS, MODULE_IDS } from "./modules";
+import { createWorld, MODULE_IDS, type ModuleData } from "./modules";
 import { telemetryFor } from "./telemetry";
 import type { DetectionFrame, Kpi, ModuleId, Observable, SimEvent, Telemetry, Zone } from "./types";
 import { CLIP_LENGTH, World } from "./world";
@@ -57,7 +59,7 @@ type Listener = () => void;
  */
 export class Engine {
   readonly provider: InferenceProvider;
-  readonly worlds: Record<ModuleId, World<unknown>>;
+  readonly worlds: Record<ModuleId, World<ModuleData>>;
   t = 0;
   playing = true;
   speed: Speed = 1;
@@ -78,10 +80,13 @@ export class Engine {
   private slowListeners = new Set<Listener>();
   private uiListeners = new Set<Listener>();
 
+  /** Serves the modules whose feed is a real clip with offline annotations. */
+  readonly precomputed = new PrecomputedProvider();
+
   constructor(seed = DEFAULT_SEED, provider: InferenceProvider = activeProvider) {
     this.seed = seed;
     this.provider = provider;
-    this.worlds = Object.fromEntries(MODULE_IDS.map((m) => [m, new World(MODULE_DEFS[m], seed)])) as Record<ModuleId, World<unknown>>;
+    this.worlds = Object.fromEntries(MODULE_IDS.map((m) => [m, createWorld(m, seed)])) as Record<ModuleId, World<ModuleData>>;
     this.frames = Object.fromEntries(MODULE_IDS.map((m) => [m, { prev: null, curr: null }])) as Record<ModuleId, ModuleFrames>;
     this.telemetry = Object.fromEntries(MODULE_IDS.map((m) => [m, emptyTelemetry()])) as Record<ModuleId, Telemetry>;
     this.feeds = Object.fromEntries(MODULE_IDS.map((m) => [m, defaultFeed()])) as Record<ModuleId, FeedSettings>;
@@ -92,6 +97,32 @@ export class Engine {
     for (const m of MODULE_IDS) {
       this.worlds[m].onTick((tick, t, latencyMs, observables) => this.handleTick(m, tick, t, latencyMs, observables));
     }
+    // Modules backed by real footage swap their class list for the vocabulary
+    // the clip was actually annotated with, so nothing on screen promises a
+    // class the track file cannot answer.
+    if (typeof window !== "undefined") {
+      for (const m of MODULE_IDS) {
+        if (!hasRealFeed(m)) continue;
+        void loadTracks(m).then((file) => {
+          if (!file) return;
+          const vocab = realVocabulary(m);
+          if (vocab.length > 0) {
+            this.classes[m] = vocab.map((spec) => ({ spec, addedAt: 0, readyAt: 0, visible: true, prompt: spec.label }));
+          }
+          this.notifyUi();
+        });
+      }
+    }
+  }
+
+  /** The provider answering for a module: precomputed on real clips, simulated otherwise. */
+  providerFor(m: ModuleId): InferenceProvider {
+    return hasRealFeed(m) ? this.precomputed : this.provider;
+  }
+
+  /** True once a module's real clip and its track file are both available. */
+  isReal(m: ModuleId): boolean {
+    return realFeedFor(m) !== undefined;
   }
 
   // ── subscriptions ────────────────────────────────────────────────────────
@@ -197,7 +228,7 @@ export class Engine {
     const pending = new Set<string>();
     for (const c of active) if (t < c.readyAt) pending.add(c.spec.key);
     const classes = active.filter((c) => c.visible).map((c) => c.spec);
-    const result = this.provider.ground({
+    const result = this.providerFor(m).ground({
       module: m,
       seed: this.seed,
       tick,

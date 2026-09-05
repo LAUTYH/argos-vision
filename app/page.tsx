@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ArrowUpRight, Camera } from "lucide-react";
-import { MODULE_BY_ID, MODULES, SITES } from "@/lib/data/company";
+import { MODULE_BY_ID, MODULES, RUNTIME, SHIFT, SITES } from "@/lib/data/company";
 import { alertsForSite, towerKpis } from "@/lib/sim/aggregate";
 import { useEngine, useEngineSlow } from "@/lib/store/engine-hooks";
 import { FeedCanvas } from "@/components/feed/FeedCanvas";
@@ -53,18 +53,18 @@ export default function TowerPage() {
         })}
       </section>
 
-      <section className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-9" aria-label="KPIs consolidados">
+      <section className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 2xl:grid-cols-9" aria-label="KPIs consolidados">
         {kpis.map((k) => (
           <KpiCard key={k.id} kpi={k} size="sm" />
         ))}
       </section>
 
       <div className="grid grid-cols-12 gap-4">
-        <section className="col-span-12 grid grid-cols-2 gap-4 xl:col-span-8 xl:grid-cols-3" aria-label="Vista previa de módulos">
+        <section className="col-span-12 grid auto-rows-min grid-cols-2 content-start gap-4 xl:col-span-8 xl:grid-cols-3" aria-label="Vista previa de módulos">
           {MODULES.map((m) => {
             const mk = engine.kpis(m.id).slice(0, 2);
             return (
-              <Link key={m.id} href={m.path} className="panel group overflow-hidden transition-colors duration-150 hover:border-white/15">
+              <Link key={m.id} href={m.path} className="panel group h-fit overflow-hidden transition-colors duration-150 hover:border-white/15">
                 <FeedCanvas module={m.id} mini />
                 <div className="flex items-center gap-2 px-3 py-2">
                   <div className="min-w-0 flex-1">
@@ -89,6 +89,31 @@ export default function TowerPage() {
               </Link>
             );
           })}
+          <Panel title="Runtime de inferencia" className="col-span-2 xl:col-span-3">
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 px-3 py-2.5 text-[11px] sm:grid-cols-4">
+              <div>
+                <dt className="text-dim">Proveedor activo</dt>
+                <dd className="text-text">{engine.provider.info.label}</dd>
+              </div>
+              <div>
+                <dt className="text-dim">Aceleradores</dt>
+                <dd className="num text-text">{RUNTIME.fleet}</dd>
+              </div>
+              <div>
+                <dt className="text-dim">Precisión · modo</dt>
+                <dd className="num text-text">
+                  {RUNTIME.precision} · {RUNTIME.mode}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-dim">Semilla · turno</dt>
+                <dd className="num text-text">
+                  {engine.seed} · {SHIFT.code}
+                </dd>
+              </div>
+            </dl>
+            <p className="border-t border-border px-3 py-2 text-[10px] leading-relaxed text-dim">{RUNTIME.note}</p>
+          </Panel>
         </section>
         <div className="col-span-12 xl:col-span-4">
           <Panel title="Eventos en vivo · 4 sitios" aside={<span className="num text-[10px] text-dim">{fmt(events.length)} recientes</span>} className="h-full">

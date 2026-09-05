@@ -7,9 +7,11 @@ import type { InspeccionData } from "@/lib/sim/modules/inspeccion";
 import { paintScene, paintVideoGrain } from "@/lib/sim/scene";
 import type { ModuleId } from "@/lib/sim/types";
 import type { WorldState } from "@/lib/sim/world";
+import { hasRealFeed } from "@/lib/feeds/catalog";
 import { paintAgents } from "./agents";
 import { paintAnnotations, paintBurnIn } from "./annotate";
 import { prepareSurface } from "./canvas";
+import { getVideo, syncVideo } from "./video";
 
 export interface FeedRenderInput {
   canvas: HTMLCanvasElement;
@@ -42,9 +44,21 @@ export function renderFeed(i: FeedRenderInput): void {
   if (i.module === "inspeccion") param = (world.state as WorldState<InspeccionData>).data.passT;
   if (i.module === "documentos") param = (world.state as WorldState<DocumentosData>).data.docIdx;
 
-  paintScene(ctx, { module: i.module, t, seed: e.seed, param, dpr });
-  paintAgents(ctx, i.module, world, t);
-  if (!i.mini) paintVideoGrain(ctx, t, e.seed, 0.05);
+  if (hasRealFeed(i.module)) {
+    // Real footage: the clip is the scene. Nothing procedural is drawn under it.
+    syncVideo(i.module, t, e.playing, e.speed);
+    const video = getVideo(i.module);
+    if (video) {
+      ctx.drawImage(video, 0, 0, SCENE_W, SCENE_H);
+    } else {
+      ctx.fillStyle = "#0b0e15";
+      ctx.fillRect(0, 0, SCENE_W, SCENE_H);
+    }
+  } else {
+    paintScene(ctx, { module: i.module, t, seed: e.seed, param, dpr });
+    paintAgents(ctx, i.module, world, t);
+    if (!i.mini) paintVideoGrain(ctx, t, e.seed, 0.05);
+  }
 
   const settings = e.feeds[i.module];
   if (!settings.raw) {
@@ -52,12 +66,16 @@ export function renderFeed(i: FeedRenderInput): void {
       module: i.module,
       t,
       frames: e.frames[i.module],
-      zones: world.zones(),
+      // The procedural floor plan describes the simulated site, not the clip,
+      // so it is not drawn over real footage.
+      zones: hasRealFeed(i.module) ? [] : world.zones(),
       settings,
       classes: e.classes[i.module],
       scale: s.scale,
       mini: i.mini,
-      heat: i.module === "flujo" ? { grid: (world.state as WorldState<FlujoData>).data.heat, cam: FLUJO_CAM } : undefined,
+      // The dwell grid belongs to the simulated floor plan, so it is not
+      // projected onto a real clip.
+      heat: i.module === "flujo" && !hasRealFeed(i.module) ? { grid: (world.state as WorldState<FlujoData>).data.heat, cam: FLUJO_CAM } : undefined,
       reducedMotion: i.reducedMotion,
     });
   }

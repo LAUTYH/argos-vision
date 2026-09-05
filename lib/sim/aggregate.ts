@@ -40,12 +40,19 @@ export function unitsReceivedToday(e: Engine): number {
   const s = recepcionState(e);
   let units = 0;
   for (const h of s.data.history) units += h.units + h.undeclared;
-  const remito = activeRemito(s);
-  for (const line of remito.lines) units += skuTotal(s, line.sku);
-  units += Object.values(s.data.unexpected).reduce((a, b) => a + b, 0);
+  // A finished truck is already in `history`; counting the still-active tally
+  // as well would book its units twice until the next truck starts.
+  if (!s.data.done) {
+    const remito = activeRemito(s);
+    for (const line of remito.lines) units += skuTotal(s, line.sku);
+    units += Object.values(s.data.unexpected).reduce((a, b) => a + b, 0);
+  }
   // remitos closed earlier in the shift, before the session started
-  return units + 1284;
+  return units + SHIFT_UNITS_BEFORE_SESSION;
 }
+
+/** Units booked earlier in the shift, before this session's clip starts. */
+export const SHIFT_UNITS_BEFORE_SESSION = 1284;
 
 export function peopleInScene(e: Engine): number {
   let n = 0;
@@ -94,7 +101,7 @@ export function towerKpis(e: Engine): Kpi[] {
   const alerts = e.activeAlerts();
   const stats = passStats(ins);
   return [
-    { id: "dps", label: "Detecciones / s", value: detectionsPerSecond(e), unit: "boxes/s", decimals: 0, hint: "Σ boxes/s de los 6 feeds" },
+    { id: "dps", label: "Detecciones / s", value: detectionsPerSecond(e), unit: "boxes/s", decimals: 0, hint: "Σ de los 6 feeds · 4×H100" },
     { id: "latency", label: "Latencia media", value: meanLatency(e), unit: "ms", decimals: 0, hint: "media de los 6 feeds" },
     { id: "alerts", label: "Alertas activas", value: alerts, decimals: 0, status: alerts > 0 ? "alert" : "ok", hint: "severidad media/alta · últimos 2 min" },
     { id: "people", label: "Personas en escena", value: peopleInScene(e), decimals: 0, hint: "seguridad + flujo + patio" },

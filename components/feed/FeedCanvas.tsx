@@ -10,6 +10,15 @@ import { cn } from "@/lib/utils";
 /** Mini previews do not need 60 fps; six of them at full rate is pure waste. */
 const MINI_FPS = 15;
 
+const STAGGER = new Map<ModuleId, number>([
+  ["recepcion", 0],
+  ["seguridad", 1],
+  ["flujo", 2],
+  ["patio", 3],
+  ["inspeccion", 4],
+  ["documentos", 5],
+]);
+
 /**
  * One feed. Owns its own requestAnimationFrame loop that reads the engine
  * directly, and stops drawing while off-screen or when the tab is hidden.
@@ -28,7 +37,9 @@ export function FeedCanvas({ module, mini = false, className }: { module: Module
     let visible = true;
     let size = { w: wrap.clientWidth, h: wrap.clientHeight };
     let lastFrame = -1;
-    let lastPaint = 0;
+    // Six previews building their backgrounds in the same frame is a visible
+    // hitch; a small per-feed offset spreads that first paint out.
+    let lastPaint = mini ? performance.now() + (STAGGER.get(module) ?? 0) * 55 : 0;
     const minInterval = mini ? 1000 / MINI_FPS : 0;
 
     const draw = (now: number) => {

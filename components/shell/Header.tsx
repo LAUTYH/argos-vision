@@ -40,14 +40,14 @@ export function Header() {
         </div>
         <div className="truncate text-[11px] text-muted">{sub}</div>
       </div>
-      <div className="hidden items-center gap-3 md:flex">
-        <Hint label={`Alertas de severidad media o alta en los últimos 2 minutos, sumadas en los 6 módulos`}>
-          <div className="num flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-[11px] text-muted">
+      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+        <Hint label="Alertas de severidad media o alta en los últimos 2 minutos, sumadas en los 6 módulos">
+          <div className="num hidden items-center gap-1.5 rounded-md border border-border px-2 py-1 text-[11px] text-muted lg:flex">
             <Radio size={12} className={alerts > 0 ? "text-red" : "text-dim"} />
             <span className="text-text">{alerts}</span> alertas
           </div>
         </Hint>
-        <div className="num text-right leading-tight">
+        <div className="num hidden text-right leading-tight sm:block">
           <div className="text-[13px] font-medium text-text">{simClock(engine.t)}</div>
           <div className="text-[10px] text-muted">
             {SHIFT.code} · {SIM_DATE}
@@ -65,13 +65,14 @@ export function Header() {
             </span>
           }
         >
-          <Button size="icon" variant="ghost" onClick={() => setUi({ shortcutsOpen: true })} aria-label="Atajos de teclado">
+          <Button size="icon" variant="ghost" className="hidden sm:inline-flex" onClick={() => setUi({ shortcutsOpen: true })} aria-label="Atajos de teclado">
             <Keyboard size={15} />
           </Button>
         </Hint>
-        <Button size="sm" variant={ui.reelActive ? "primary" : "outline"} onClick={() => setUi({ reelActive: !ui.reelActive })}>
+        <Button size="sm" variant={ui.reelActive ? "primary" : "outline"} onClick={() => setUi({ reelActive: !ui.reelActive })} aria-pressed={ui.reelActive}>
           <span className={ui.reelActive ? "pulse-dot h-1.5 w-1.5 rounded-full bg-accent" : "h-1.5 w-1.5 rounded-full bg-muted"} />
-          Demo reel <Kbd className="ml-1">D</Kbd>
+          <span className="hidden sm:inline">Demo reel</span>
+          <Kbd className="ml-0.5">D</Kbd>
         </Button>
       </div>
     </header>

@@ -1,6 +1,9 @@
 "use client";
 
 import { MODULE_BY_ID, SITE_BY_ID } from "@/lib/data/company";
+import { realFeedFor } from "@/lib/feeds/catalog";
+import { loadedTracks } from "@/lib/feeds/tracks";
+import { Badge } from "@/components/ui/badge";
 import type { ModuleId } from "@/lib/sim/types";
 import { useEngine, useEngineSlow } from "@/lib/store/engine-hooks";
 import { Hint } from "@/components/ui/tooltip";
@@ -27,6 +30,33 @@ export function FeedPanel({ module }: { module: ModuleId }) {
   const site = SITE_BY_ID[meta.site];
   const tm = engine.telemetry[module];
   const warm = tm.fps > 0;
+  const real = realFeedFor(module);
+  const tracks = real ? loadedTracks(module) : undefined;
+  const boxes = engine.frames[module].curr?.detections.length ?? 0;
+  if (real) {
+    return (
+      <section className="panel overflow-hidden" aria-label={`Feed real · ${meta.title}`}>
+        <div className="flex items-center gap-3 px-3 py-2">
+          <div className="min-w-0 flex-1 truncate text-[11px] text-muted">
+            <span className="font-medium text-text">{meta.camera}</span>
+            <span className="mx-1.5 text-dim">·</span>
+            {site.name}
+          </div>
+          <Badge tone="cyan">Video real</Badge>
+          <div className="hidden items-center gap-3 sm:flex">
+            <Metric label="cajas" value={String(boxes)} hint="Detecciones del detector en este frame del clip." />
+            <Metric label="anot" value={tracks ? String(tracks.sampleFps) : "—"} unit="fps" hint="Frecuencia a la que se anotó el clip fuera de línea." />
+            <Metric label="modelo" value={tracks ? "OWL-ViT" : "—"} hint="Las cajas las produjo OWL-ViT sobre este clip, fuera del navegador. No hay modelo corriendo acá." />
+          </div>
+        </div>
+        <FeedCanvas module={module} />
+        <div className="border-t border-border px-3 py-1.5 text-[10px] text-dim">
+          Clip: {real.source} · {real.credit} · anotado con {tracks?.model ?? "OWL-ViT"} · cajas reales, sin modelo en el navegador
+        </div>
+        <FeedControls module={module} />
+      </section>
+    );
+  }
   return (
     <section className="panel overflow-hidden" aria-label={`Feed · ${meta.title}`}>
       <div className="flex items-center gap-3 px-3 py-2">

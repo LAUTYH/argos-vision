@@ -33,6 +33,29 @@ const NODES = {
 
 const SPINE_X = -0.1;
 
+/** Segment/segment intersection, used to keep walking routes out of the zone. */
+function segmentsCross(a: Vec2, b: Vec2, c: Vec2, d: Vec2): boolean {
+  const s1x = b.x - a.x;
+  const s1y = b.y - a.y;
+  const s2x = d.x - c.x;
+  const s2y = d.y - c.y;
+  const den = -s2x * s1y + s1x * s2y;
+  if (Math.abs(den) < 1e-9) return false;
+  const s = (-s1y * (a.x - c.x) + s1x * (a.y - c.y)) / den;
+  const t = (s2x * (a.y - c.y) - s2y * (a.x - c.x)) / den;
+  return s >= 0 && s <= 1 && t >= 0 && t <= 1;
+}
+
+function crossesRestricted(from: Vec2, to: Vec2): boolean {
+  if (pointInPoly(from, RESTRICTED) || pointInPoly(to, RESTRICTED)) return true;
+  for (let i = 0; i < RESTRICTED.length; i++) {
+    const p = RESTRICTED[i] as Vec2;
+    const q = RESTRICTED[(i + 1) % RESTRICTED.length] as Vec2;
+    if (segmentsCross(from, to, p, q)) return true;
+  }
+  return false;
+}
+
 /**
  * People move along the marked walkway (the "spine") and step off it sideways
  * to reach a workstation, so nobody wanders through the restricted zone.
@@ -45,10 +68,12 @@ function viaSpine(from: Vec2, to: Waypoint, lane = 0): Waypoint[] {
   const sameSide = (from.x - SPINE_X) * (to.x - SPINE_X) > 0;
   const shortHop = Math.abs(from.y - to.y) < 2.4 && Math.abs(from.x - to.x) < 2.8;
   // Two stops on the same side of the aisle, close together, are walked
-  // directly; only cross-floor moves go out to the walkway.
-  if (!(sameSide || shortHop)) {
-    if (offSpineFrom && Math.abs(from.y - to.y) > 0.8) out.push({ x: spine, y: from.y });
-    if (offSpineTo && Math.abs(from.y - to.y) > 0.8) out.push({ x: spine, y: to.y });
+  // directly — unless the straight line would cut through the guarded area,
+  // which nobody does without a work permit.
+  const direct = (sameSide || shortHop) && !crossesRestricted(from, to);
+  if (!direct) {
+    if (offSpineFrom) out.push({ x: spine, y: from.y });
+    if (offSpineTo || offSpineFrom) out.push({ x: spine, y: to.y });
   }
   out.push(to);
   return out;
@@ -72,9 +97,14 @@ export interface SeguridadData {
   restrictedEntries: number;
   spawnCooldown: number;
   lastIncidentT: number;
+  /** Next periodic PPE roll-call, seconds. */
+  nextSweepAt: number;
 }
 
+/** Named for the scripted beats, so a recording always tells the same story. */
+const SCRIPTED_NAMES = new Set(["M. Ledesma", "R. Acuña", "D. Quiroga"]);
 const PLANT_STAFF = OPERATORS.slice(0, 7);
+const AMBIENT_STAFF = PLANT_STAFF.filter((o) => !SCRIPTED_NAMES.has(o.name));
 
 function usedNames(state: WorldState<SeguridadData>): Set<string> {
   const s = new Set<string>();
@@ -85,10 +115,10 @@ function usedNames(state: WorldState<SeguridadData>): Set<string> {
 function pickName(ctx: InitCtx | StepCtx, used: Set<string>, prefer?: string) {
   if (prefer) {
     const p = PLANT_STAFF.find((o) => o.name === prefer);
-    if (p && !used.has(p.name)) return p;
+    if (p) return p;
   }
-  const free = PLANT_STAFF.filter((o) => !used.has(o.name));
-  if (free.length === 0) return ctx.rng.pick(PLANT_STAFF);
+  const free = AMBIENT_STAFF.filter((o) => !used.has(o.name));
+  if (free.length === 0) return ctx.rng.pick(AMBIENT_STAFF);
   return ctx.rng.pick(free);
 }
 
@@ -167,6 +197,7 @@ function init(ctx: InitCtx): { data: SeguridadData; entities: Entity[] } {
       restrictedEntries: 1,
       spawnCooldown: 6,
       lastIncidentT: -412,
+      nextSweepAt: 17,
     },
     entities,
   };
@@ -208,11 +239,30 @@ function step(state: WorldState<SeguridadData>, ctx: StepCtx): void {
     }
   }
 
+  // Periodic roll-call. A safety console logs the state of the floor, not
+  // only its incidents, so the timeline stays informative between alerts.
+  if (ctx.t >= d.nextSweepAt) {
+    d.nextSweepAt = ctx.t + 26;
+    const total = people.length;
+    const compliant = people.filter((p) => p.helmet && p.vest).length;
+    if (total > 0) {
+      ctx.emit({
+        severity: compliant === total ? "info" : "low",
+        kind: "sweep",
+        title: `Control de EPP · ${compliant} de ${total} conformes`,
+        detail:
+          compliant === total
+            ? `Nave 2 · casco y chaleco verificados en todos los tracks activos`
+            : `Nave 2 · ${total - compliant} track${total - compliant === 1 ? "" : "s"} con EPP incompleto`,
+      });
+    }
+  }
+
   // keep the floor populated
   d.spawnCooldown -= ctx.dt;
-  if (people.length < 4 && d.spawnCooldown <= 0) {
+  if (people.length < 5 && d.spawnCooldown <= 0) {
     state.entities.push(spawn(ctx, state, ctx.t));
-    d.spawnCooldown = ctx.rng.float(5, 14);
+    d.spawnCooldown = ctx.rng.float(4, 10);
   }
 
   const gone: number[] = [];

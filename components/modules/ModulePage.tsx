@@ -1,6 +1,8 @@
 "use client";
 
-import type { ModuleId } from "@/lib/sim/types";
+import { hasRealFeed } from "@/lib/feeds/catalog";
+import { realKpis } from "@/lib/feeds/stats";
+import type { Kpi, ModuleId } from "@/lib/sim/types";
 import { useEngine, useEngineSlow } from "@/lib/store/engine-hooks";
 import { FeedPanel } from "@/components/feed/FeedPanel";
 import { PromptBar } from "@/components/feed/PromptBar";
@@ -19,10 +21,12 @@ export function Panel({ title, children, className = "", aside }: { title: strin
   );
 }
 
-export function ModulePage({ module, side, kpiText }: { module: ModuleId; side: React.ReactNode; kpiText?: Record<string, string> }) {
+export function ModulePage({ module, side, kpiText, extraKpis = [] }: { module: ModuleId; side: React.ReactNode; kpiText?: Record<string, string>; extraKpis?: Kpi[] }) {
   const engine = useEngine();
   useEngineSlow();
-  const kpis = engine.kpis(module);
+  // A real clip reports what the detector saw; a procedural scene reports
+  // what the simulated world knows.
+  const kpis = hasRealFeed(module) ? realKpis(engine, module) : [...engine.kpis(module), ...extraKpis];
   const events = engine.events(module, 40);
   return (
     <div className="mx-auto flex max-w-[1600px] flex-col gap-4">
@@ -40,6 +44,12 @@ export function ModulePage({ module, side, kpiText }: { module: ModuleId; side: 
               <KpiCard key={k.id} kpi={k} text={kpiText?.[k.id]} />
             ))}
           </div>
+          {hasRealFeed(module) ? (
+            <p className="rounded-md border border-border bg-surface-2 px-3 py-2 text-[11px] leading-relaxed text-muted">
+              Lo de arriba se cuenta sobre el clip. Lo de abajo es el <span className="text-text">registro operativo</span> de Vantor —
+              remitos, dársenas, patentes — que una cámara no puede leer: son datos de ejemplo, no salen del video.
+            </p>
+          ) : null}
           {side}
         </div>
       </div>

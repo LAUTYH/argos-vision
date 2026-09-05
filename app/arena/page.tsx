@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { BENCH_H, BENCH_MODELS, BENCH_W, benchScene, LA_MODES, OTHER_BENCHMARKS, type BenchBox, type BenchModel } from "@/lib/arena/bench";
 import { FONTS, hexAlpha, roundRect } from "@/lib/render/canvas";
 import { hashRng } from "@/lib/sim/rng";
+import { RUNTIME } from "@/lib/data/company";
 import { useEngine } from "@/lib/store/engine-hooks";
 import { Panel } from "@/components/modules/ModulePage";
 import { Button } from "@/components/ui/button";
@@ -152,6 +153,8 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
+const maxBps = Math.max(...BENCH_MODELS.map((m) => m.bps));
+
 export default function ArenaPage() {
   const engine = useEngine();
   const reduced = useReducedMotion();
@@ -210,8 +213,9 @@ export default function ArenaPage() {
         ))}
       </section>
 
-      <div className="grid grid-cols-12 gap-4">
-        <Panel title="Tabla 1 del paper · COCO y LVIS · H100, batch 1, BF16" className="col-span-12 xl:col-span-8">
+      <div className="grid grid-cols-12 items-start gap-4">
+        <div className="col-span-12 flex flex-col gap-4 xl:col-span-8">
+        <Panel title="Tabla 1 del paper · COCO y LVIS · H100, batch 1, BF16">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-[12px]">
               <thead>
@@ -253,6 +257,26 @@ export default function ArenaPage() {
             figuran en la tabla. La animación de arriba reproduce las tasas de decodificación publicadas, no mide nada.
           </div>
         </Panel>
+        <Panel title="Throughput · boxes/s en una H100">
+          <ul className="flex flex-col gap-3 px-3 py-3">
+            {BENCH_MODELS.map((m) => (
+              <li key={m.id} className="flex items-center gap-3">
+                <span className="w-[132px] shrink-0 truncate text-[12px] text-text">{m.name}</span>
+                <span className="relative h-4 flex-1 overflow-hidden rounded-[3px] bg-white/[0.04]">
+                  <span className="absolute inset-y-0 left-0 rounded-[3px]" style={{ width: `${(m.bps / maxBps) * 100}%`, background: m.color, opacity: m.id === "locate-anything" ? 0.9 : 0.55 }} />
+                </span>
+                <span className="num w-[76px] shrink-0 text-right text-[12px] text-text">
+                  {fmt(m.bps, 1)} <span className="text-dim">b/s</span>
+                </span>
+                <span className="num w-[48px] shrink-0 text-right text-[11px] text-muted">{m.id === "locate-anything" ? "—" : `${fmt(BENCH_MODELS[0]!.bps / m.bps, 1)}×`}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="border-t border-border px-3 py-2 text-[10px] text-dim">
+            Parallel Box Decoding emite la caja completa en un paso en lugar de token por token: 2,5× sobre Rex-Omni y ~10× sobre Qwen3-VL, con mejor F1 a IoU alto. {RUNTIME.note}
+          </div>
+        </Panel>
+        </div>
         <div className="col-span-12 flex flex-col gap-4 xl:col-span-4">
           <Panel title="Modos de inferencia · LocateAnything">
             <ul className="divide-y divide-border">

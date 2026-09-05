@@ -12,7 +12,7 @@ import type { InitCtx, ModuleDef, StepCtx, WorldState } from "../world";
 export const BLADE_LENGTH_M = 67;
 export const PX_PER_M = 104;
 export const VIEW_HALF = 640 / (BLADE_LENGTH_M * PX_PER_M);
-export const PASS_SECONDS = 68;
+export const PASS_SECONDS = 48;
 export const PASS_GAP = 4;
 export const BLADE_CY = 372;
 
@@ -49,7 +49,23 @@ export interface InspeccionData {
   pausedUntil: number;
 }
 
-const TYPES: DefectType[] = ["erosion", "grieta", "delaminacion", "rayo", "pintura"];
+/** Weighted so lightning strikes stay rare and erosion dominates, as on a real fleet. */
+const TYPE_WEIGHTS: Array<[DefectType, number]> = [
+  ["erosion", 0.34],
+  ["pintura", 0.25],
+  ["delaminacion", 0.2],
+  ["grieta", 0.16],
+  ["rayo", 0.05],
+];
+
+function pickType(r: { next: () => number }): DefectType {
+  let k = r.next();
+  for (const [type, w] of TYPE_WEIGHTS) {
+    k -= w;
+    if (k <= 0) return type;
+  }
+  return "erosion";
+}
 
 function blobPoly(r: { float: (a: number, b: number) => number }, n: number, elong: number): Vec2[] {
   const pts: Vec2[] = [];
@@ -66,18 +82,20 @@ export function defectsFor(seed: number, assetId: string, blade: string): Array<
   const r = hashRng(seed, "defects", assetId, blade);
   const asset = WIND_ASSETS.find((a) => a.id === assetId);
   const wear = asset ? clamp((asset.hours - 20000) / 25000, 0, 1) : 0.5;
-  const n = Math.max(3, Math.round(r.float(5, 8) + wear * 3));
+  const n = Math.max(1, Math.round(r.float(1.2, 3.4) + wear * 2.2));
   const out: Array<Omit<DefectEntity, "id" | "trackId" | "born">> = [];
   for (let i = 0; i < n; i++) {
-    const type = i < 2 && wear > 0.45 ? "erosion" : i % 3 === 1 ? "pintura" : r.pick(TYPES);
+    const type = i === 0 && wear > 0.5 ? "erosion" : pickType(r);
     const u = type === "erosion" ? r.float(0.55, 0.96) : r.float(0.08, 0.95);
     const v = type === "erosion" ? -0.86 : r.float(-0.7, 0.7);
     const su = type === "erosion" ? r.float(0.02, 0.05) : type === "grieta" ? r.float(0.004, 0.011) : r.float(0.006, 0.02);
     const sv = type === "erosion" ? 0.16 : type === "grieta" ? r.float(0.35, 0.8) : r.float(0.18, 0.4);
-    const areaPct = clamp(su * sv * 100 * r.float(0.8, 1.2) * (type === "erosion" ? 0.6 : 1.4), 0.02, 3.5);
+    // Older machines carry larger defects, so the fleet table reads as a
+    // service history rather than noise.
+    const areaPct = clamp(su * sv * 100 * r.float(0.8, 1.2) * (type === "erosion" ? 0.6 : 1.4) * (0.55 + wear * 0.85), 0.02, 3.5);
     let severity: DefectSeverity = "baja";
-    if (type === "rayo" || (type === "grieta" && sv > 0.5) || areaPct > 1.2) severity = "alta";
-    else if (areaPct > 0.35 || type === "grieta") severity = "media";
+    if ((type === "rayo" && areaPct > 0.45) || (type === "grieta" && sv > 0.62) || areaPct > 1.6) severity = "alta";
+    else if (areaPct > 0.42 || type === "grieta" || type === "rayo") severity = "media";
     out.push({
       kind: "defecto",
       type,
@@ -112,7 +130,7 @@ function loadPass(ctx: InitCtx | StepCtx, seed: number, passIdx: number): Entity
 
 function init(ctx: InitCtx): { data: InspeccionData; entities: Entity[] } {
   return {
-    data: { passIdx: 0, passT: 6, seen: [], passSeenIds: [], passesDone: 0, pausedUntil: 0 },
+    data: { passIdx: 0, passT: 0, seen: [], passSeenIds: [], passesDone: 0, pausedUntil: 0 },
     entities: loadPass(ctx, ctx.seed, 0),
   };
 }

@@ -7,6 +7,7 @@ import { activeRemito, skuTotal } from "@/lib/sim/modules/recepcion";
 import { useEngine, useEngineSlow } from "@/lib/store/engine-hooks";
 import { ModulePage, Panel } from "@/components/modules/ModulePage";
 import { Badge } from "@/components/ui/badge";
+import type { DetectionFrame, Kpi } from "@/lib/sim/types";
 import { cn, fmt } from "@/lib/utils";
 
 function FieldsAndCrossCheck() {
@@ -103,6 +104,18 @@ function FieldsAndCrossCheck() {
   );
 }
 
+function ocrKpis(frame: DetectionFrame | null): Kpi[] {
+  const dets = frame?.detections ?? [];
+  const mean = dets.length ? dets.reduce((a, d) => a + d.conf, 0) / dets.length : 0;
+  const review = dets.filter((d) => d.conf < 0.8).length;
+  return [
+    { id: "conf", label: "Confianza media", value: mean * 100, unit: "%", decimals: 1, status: mean < 0.85 ? "warn" : "ok" },
+    { id: "review", label: "Campos a revisar", value: review, decimals: 0, status: review > 0 ? "warn" : "ok" },
+  ];
+}
+
 export default function Page() {
-  return <ModulePage module="documentos" side={<FieldsAndCrossCheck />} />;
+  const engine = useEngine();
+  useEngineSlow();
+  return <ModulePage module="documentos" side={<FieldsAndCrossCheck />} extraKpis={ocrKpis(engine.frames.documentos.curr)} />;
 }

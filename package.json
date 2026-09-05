@@ -8,7 +8,13 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "sim:check": "tsx scripts/sim-check.ts",
+    "reel:check": "tsx scripts/reel-check.ts",
+    "coherence:check": "tsx scripts/coherence-check.ts",
+    "realism:check": "tsx scripts/realism-check.ts",
+    "annotate:feeds": "tsx scripts/annotate-feeds.ts",
+    "preview:tracks": "tsx scripts/preview-tracks.ts"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",
@@ -25,6 +31,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.7",
+    "@huggingface/transformers": "^4.2.0",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^24.0.0",
     "@types/react": "^19.2.18",

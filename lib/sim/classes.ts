@@ -86,6 +86,17 @@ export const CLASSES: ClassSpec[] = [
     suggest: "caja abierta",
   },
   {
+    key: "bulto",
+    label: "bulto",
+    colorIndex: 3,
+    shape: "box",
+    modules: ["recepcion"],
+    base: false,
+    synonyms: ["bulto", "bultos", "paquete envuelto", "bolsa", "parcel"],
+    match: () => false,
+    suggest: "bulto",
+  },
+  {
     key: "pallet",
     label: "pallet",
     colorIndex: 6,
@@ -227,6 +238,18 @@ export const CLASSES: ClassSpec[] = [
     match: (o) => o.kind === "montacarga",
     status: (o) => (o.attrs.inPedestrian ? "alert" : o.attrs.wrongWay ? "warn" : "ok"),
     sub: (o) => o.attrs.code,
+  },
+  {
+    key: "auto",
+    label: "auto",
+    colorIndex: 2,
+    shape: "box",
+    modules: ["patio"],
+    base: false,
+    synonyms: ["auto", "autos", "coche", "coches", "vehiculo liviano", "car"],
+    // Only the real yard clip contains cars; the simulated yard has none.
+    match: () => false,
+    suggest: "auto",
   },
   {
     key: "camion",

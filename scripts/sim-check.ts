@@ -4,7 +4,7 @@
  */
 import { detectFrame } from "../lib/sim/detector";
 import { baseClasses } from "../lib/sim/classes";
-import { MODULE_DEFS, MODULE_IDS } from "../lib/sim/modules";
+import { createWorld, MODULE_IDS, type ModuleData } from "../lib/sim/modules";
 import { tallies, unitsPerHour } from "../lib/sim/modules/recepcion";
 import { World } from "../lib/sim/world";
 import type { ModuleId } from "../lib/sim/types";
@@ -12,7 +12,7 @@ import type { ModuleId } from "../lib/sim/types";
 const SEED = 20260904;
 
 function run(seed: number, seconds: number) {
-  const worlds = Object.fromEntries(MODULE_IDS.map((m) => [m, new World(MODULE_DEFS[m], seed)])) as Record<ModuleId, World<unknown>>;
+  const worlds = Object.fromEntries(MODULE_IDS.map((m) => [m, createWorld(m, seed)])) as Record<ModuleId, World<ModuleData>>;
   const frames: Record<string, string[]> = {};
   for (const m of MODULE_IDS) {
     frames[m] = [];
@@ -42,16 +42,16 @@ console.warn(`determinism: ${identical ? "OK" : "FAIL"} · 6 worlds × 120 s in 
 
 // seek check: a fresh world sought to 95 s must equal a world stepped to 95 s
 {
-  const w1 = new World(MODULE_DEFS.patio, SEED);
+  const w1 = createWorld("patio", SEED);
   w1.stepTo(95);
-  const w2 = new World(MODULE_DEFS.patio, SEED);
+  const w2 = createWorld("patio", SEED);
   w2.stepTo(30);
   w2.seek(95);
   const s1 = JSON.stringify(w1.state.entities);
   const s2 = JSON.stringify(w2.state.entities);
   console.warn(`seek equivalence: ${s1 === s2 ? "OK" : "FAIL"}`);
   w2.seek(20);
-  const w3 = new World(MODULE_DEFS.patio, SEED);
+  const w3 = createWorld("patio", SEED);
   w3.stepTo(20);
   console.warn(`seek backwards: ${JSON.stringify(w2.state.entities) === JSON.stringify(w3.state.entities) ? "OK" : "FAIL"}`);
 }

@@ -43,8 +43,9 @@ function AssetPanels() {
           <thead>
             <tr className="text-[10px] uppercase tracking-[0.06em] text-dim">
               <th className="px-3 py-1.5 text-left font-medium">Activo</th>
-              <th className="py-1.5 text-left font-medium">Última insp.</th>
+              <th className="py-1.5 text-left font-medium">Últ. insp.</th>
               <th className="py-1.5 text-right font-medium">Defectos</th>
+              <th className="py-1.5 text-right font-medium">Área</th>
               <th className="px-3 py-1.5 text-right font-medium">Sev. máx</th>
             </tr>
           </thead>
@@ -64,6 +65,9 @@ function AssetPanels() {
                   </td>
                   <td className="num py-1.5 text-muted">{a.lastInspection}</td>
                   <td className="num py-1.5 text-right text-text">{all.length}</td>
+                  <td className="num py-1.5 text-right text-muted">
+                    {fmt(all.reduce((acc, d) => acc + d.areaPct, 0), 1)} <span className="text-dim">%</span>
+                  </td>
                   <td className="px-3 py-1.5 text-right">
                     <Badge tone={SEV_TONE[max]}>{max}</Badge>
                   </td>

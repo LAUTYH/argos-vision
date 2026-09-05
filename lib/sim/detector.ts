@@ -77,10 +77,13 @@ function detectOne(o: DetectOptions, obs: Observable, cls: ClassSpec): Detection
   const drift = valueNoise1(hashSeed(o.seed, obs.entityId, key), o.t * 0.9) * 0.035;
   const conf = clamp(base + drift + r.gaussian(0, 0.009), CONF_MIN, CONF_MAX);
 
-  let fn = FN_BASE + obs.occlusion * 0.35;
-  if (obs.depth > 0.85) fn += 0.05;
-  if (conf < 0.75) fn += 0.1;
-  if (r.chance(fn)) return null;
+  // Miss rate. Heavy occlusion and distance make a miss more likely, but the
+  // total stays low: a box that blinks every tenth frame reads as broken, not
+  // as a real detector.
+  let fn = FN_BASE + obs.occlusion * 0.1;
+  if (obs.depth > 0.85) fn += 0.015;
+  if (conf < 0.75) fn += 0.03;
+  if (r.chance(Math.min(0.07, fn))) return null;
 
   const size = Math.max(box.w, box.h);
   const sd = 0.45 + size * 0.006;

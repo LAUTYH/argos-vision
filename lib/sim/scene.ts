@@ -46,16 +46,16 @@ function floorQuad(ctx: CanvasRenderingContext2D, cam: Camera, x0: number, z0: n
   polyPath(ctx, [project(cam, x0, y, z0), project(cam, x1, y, z0), project(cam, x1, y, z1), project(cam, x0, y, z1)]);
 }
 
-function box3(ctx: CanvasRenderingContext2D, cam: Camera, x: number, z: number, w: number, h: number, d: number, top: string, front: string, side: string): void {
+function box3(ctx: CanvasRenderingContext2D, cam: Camera, x: number, z: number, w: number, h: number, d: number, top: string, front: string, side: string, y0 = 0): void {
   const c = [
-    project(cam, x - w / 2, 0, z - d / 2),
-    project(cam, x + w / 2, 0, z - d / 2),
-    project(cam, x + w / 2, 0, z + d / 2),
-    project(cam, x - w / 2, 0, z + d / 2),
-    project(cam, x - w / 2, h, z - d / 2),
-    project(cam, x + w / 2, h, z - d / 2),
-    project(cam, x + w / 2, h, z + d / 2),
-    project(cam, x - w / 2, h, z + d / 2),
+    project(cam, x - w / 2, y0, z - d / 2),
+    project(cam, x + w / 2, y0, z - d / 2),
+    project(cam, x + w / 2, y0, z + d / 2),
+    project(cam, x - w / 2, y0, z + d / 2),
+    project(cam, x - w / 2, y0 + h, z - d / 2),
+    project(cam, x + w / 2, y0 + h, z - d / 2),
+    project(cam, x + w / 2, y0 + h, z + d / 2),
+    project(cam, x - w / 2, y0 + h, z + d / 2),
   ] as [Vec2, Vec2, Vec2, Vec2, Vec2, Vec2, Vec2, Vec2];
   ctx.fillStyle = top;
   polyPath(ctx, [c[4], c[5], c[6], c[7]]);
@@ -292,7 +292,7 @@ function backRack(ctx: CanvasRenderingContext2D, cam: Camera, z: number, x0: num
       const hue = r.chance(0.72) ? 31 : r.chance(0.5) ? 210 : 0;
       const sat = hue === 31 ? 30 : 16;
       const L = 20 + r.float(0, 16);
-      box3(ctx, cam, cx, z, bayW * 0.86, h, 1.0, `hsl(${hue} ${sat}% ${L + 6}%)`, `hsl(${hue} ${sat}% ${L}%)`, `hsl(${hue} ${sat}% ${L - 5}%)`);
+      box3(ctx, cam, cx, z, bayW * 0.86, h, 1.0, `hsl(${hue} ${sat}% ${L + 6}%)`, `hsl(${hue} ${sat}% ${L}%)`, `hsl(${hue} ${sat}% ${L - 5}%)`, y);
     }
   }
   ctx.strokeStyle = "rgba(120,130,142,0.5)";
@@ -785,7 +785,7 @@ export function bladeOutline(u: number): { top: Vec2[]; bottom: Vec2[] } {
   return { top, bottom };
 }
 
-function paintInspeccion(ctx: CanvasRenderingContext2D, seed: number, passT: number, t: number): void {
+function paintInspeccion(ctx: CanvasRenderingContext2D, seed: number, passT: number): void {
   const u = cameraU(passT);
   // Ground seen from the drone: no horizon, the camera looks straight at the
   // blade with the field far below and out of focus.
@@ -796,33 +796,43 @@ function paintInspeccion(ctx: CanvasRenderingContext2D, seed: number, passT: num
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, SCENE_W, SCENE_H);
   const r = hashRng(seed, "terrain");
-  // field patches drifting with the pass, standing in for depth of field
-  for (let i = 0; i < 26; i++) {
-    const px = ((r.float(0, SCENE_W * 2) - u * 620) % (SCENE_W + 600)) - 300;
-    const py = r.float(-40, SCENE_H + 40);
-    ctx.fillStyle = r.chance(0.55) ? "rgba(84,102,66,0.5)" : "rgba(118,114,84,0.42)";
+  // Farm parcels far below, drifting with the pass. Straight edges read as
+  // fields from the air; soft blobs read as clouds.
+  ctx.save();
+  const skew = 0.34;
+  for (let i = 0; i < 22; i++) {
+    const w = r.float(150, 460);
+    const px = ((r.float(0, SCENE_W * 2.2) - u * 540) % (SCENE_W + 700)) - 350;
+    const py = r.float(-120, SCENE_H + 40);
+    const h = r.float(150, 420);
+    ctx.fillStyle = r.chance(0.5) ? "rgba(78,96,60,0.45)" : r.chance(0.5) ? "rgba(112,110,78,0.4)" : "rgba(62,80,54,0.5)";
     ctx.beginPath();
-    ctx.ellipse(px, py, r.float(110, 320), r.float(50, 130), r.float(-0.3, 0.3), 0, Math.PI * 2);
+    ctx.moveTo(px, py);
+    ctx.lineTo(px + w, py - w * skew);
+    ctx.lineTo(px + w, py - w * skew + h);
+    ctx.lineTo(px, py + h);
+    ctx.closePath();
     ctx.fill();
   }
-  for (let i = 0; i < 5; i++) {
-    const px = ((r.float(0, SCENE_W * 2) - u * 620) % (SCENE_W + 600)) - 300;
-    ctx.strokeStyle = "rgba(150,143,110,0.22)";
-    ctx.lineWidth = r.float(6, 16);
+  for (let i = 0; i < 4; i++) {
+    const px = ((r.float(0, SCENE_W * 2) - u * 540) % (SCENE_W + 600)) - 300;
+    ctx.strokeStyle = "rgba(148,142,112,0.18)";
+    ctx.lineWidth = r.float(4, 10);
     ctx.beginPath();
     ctx.moveTo(px, -40);
-    ctx.lineTo(px + r.float(-140, 140), SCENE_H + 40);
+    ctx.lineTo(px + SCENE_H * skew, SCENE_H + 40);
     ctx.stroke();
   }
+  ctx.restore();
   // blade
   const { top, bottom } = bladeOutline(u);
   // the blade's own shadow cast on the field, far below and offset
   ctx.save();
-  ctx.globalAlpha = 0.2;
-  ctx.fillStyle = "#101408";
+  ctx.globalAlpha = 0.26;
+  ctx.fillStyle = "#0d1207";
   ctx.beginPath();
-  top.forEach((p, i) => (i ? ctx.lineTo(p.x + 42, p.y + 168) : ctx.moveTo(p.x + 42, p.y + 168)));
-  for (let i = bottom.length - 1; i >= 0; i--) ctx.lineTo((bottom[i]?.x ?? 0) + 42, (bottom[i]?.y ?? 0) + 168);
+  top.forEach((p, i) => (i ? ctx.lineTo(p.x + 74, p.y + 232) : ctx.moveTo(p.x + 74, p.y + 232)));
+  for (let i = bottom.length - 1; i >= 0; i--) ctx.lineTo((bottom[i]?.x ?? 0) + 74, (bottom[i]?.y ?? 0) + 232);
   ctx.closePath();
   ctx.fill();
   ctx.restore();
@@ -1077,7 +1087,7 @@ export function paintScene(ctx: CanvasRenderingContext2D, input: SceneInput): vo
       blitLayer(ctx, staticLayer(`bg:patio:${seed}`, dpr, (c) => paintPatioStatic(c, seed)));
       break;
     case "inspeccion":
-      paintInspeccion(ctx, seed, input.param, input.t);
+      paintInspeccion(ctx, seed, input.param);
       break;
     case "documentos":
       blitLayer(ctx, staticLayer(`bg:doc:${seed}:${Math.floor(input.param)}`, dpr, (c) => paintDocumento(c, seed, Math.floor(input.param))));
