@@ -1,0 +1,6 @@
+allowBuilds:
+  unrs-resolver: false
+  esbuild: true
+minimumReleaseAgeExclude:
+  - lucide-react@1.41.0
+verifyDepsBeforeRun: false
